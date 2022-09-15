@@ -181,7 +181,7 @@ class Scan:
             for j, q in enumerate(Q): 
                 # Check if 2 planes are approximately coplanar
                 #if np.linalg.norm(p.normal - q.normal) < norm_thresh:
-                if np.dot(p.normal, q.normal) > 0.95:  # 18 degrees
+                if p.normal.T @ q.normal > 0.95:  # 18 degrees
                     # Check plane to plane distance    
                     if plane_to_plane_dist(p, q) < dist_thresh:
                         # Project q onto p's basis
