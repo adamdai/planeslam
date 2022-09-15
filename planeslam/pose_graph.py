@@ -104,6 +104,22 @@ class PoseGraph:
         return rotations
 
 
+    def get_poses(self):
+        """Return poses (R,t) from graph vertices
+        
+        Returns
+        -------
+        poses : list of tuples (R,t)
+
+        """
+        poses = []
+        for v in self.graph._vertices:
+            R = quat_to_R(v.pose.orientation)
+            t = v.pose.position
+            poses.append((R,t))
+        return poses
+
+
     def optimize(self):
         """Optimize the pose graph
 
