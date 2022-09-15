@@ -171,6 +171,7 @@ class LidarMesh:
         V = T[:,1,:] - T[:,0,:]  # v2 - v1
         normals = np.cross(U,V)
         normals /= np.linalg.norm(normals, axis=1)[:,None]
+        self.normals = normals
         return normals
 
 
@@ -187,7 +188,7 @@ class LidarMesh:
         self.P = np.asarray(smoothed_mesh.vertices)
 
 
-    def plot_trace(self):
+    def plot_trace(self, line_width=1):
         """Generate plotly plot trace for mesh 
 
         Returns
@@ -208,7 +209,7 @@ class LidarMesh:
             
         # Show mesh triangle sides
         lines = go.Scatter3d(x=Xe, y=Ye, z=Ze, mode='lines', name='',
-                        line=dict(color= 'rgb(70,70,70)', width=1))  
+                        line=dict(color= 'rgb(70,70,70)', width=line_width))  
 
         data = [mesh_data, lines]
         return data

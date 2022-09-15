@@ -72,7 +72,7 @@ def remove_plane_outliers(pts, n):
 
 
 
-def bd_plane_from_pts_basis(pts, n, basis):
+def bd_plane_from_pts_basis(pts, n, basis, z_outlier_thresh=0.1):
     """Extract bounding rectangular plane from set of 3D points
 
     Given a set of cluster boundary points, project the points to the cluster normal 
@@ -110,7 +110,7 @@ def bd_plane_from_pts_basis(pts, n, basis):
     plane_pts[:,plane_idx] = plane_z  
 
     # Remove outliers in plane z
-    pts_proj = pts_proj[np.abs(pts_proj[:,plane_idx] - plane_z) < 0.1]
+    pts_proj = pts_proj[np.abs(pts_proj[:,plane_idx] - plane_z) < z_outlier_thresh]
     min_plane_pts = 10
     # TODO: remove outliers in plane x/y
     if len(pts_proj) > min_plane_pts:
@@ -367,7 +367,7 @@ def scan_from_pcl_clusters(P, clusters, normals_arr, vertex_merge_thresh=1.0):
     return planes, vertices, faces
 
 
-def planes_from_clusters(mesh, clusters, avg_normals):
+def planes_from_clusters(mesh, clusters, avg_normals, z_outlier_thresh=0.1):
     """Convert clustered points to a set of planes
 
     Parameters
@@ -389,12 +389,14 @@ def planes_from_clusters(mesh, clusters, avg_normals):
 
     # Sort clusters from largest to smallest
     clusters, avg_normals = sort_mesh_clusters(clusters, avg_normals)
+    #clusters, avg_normals = combine_ground_cluster(clusters, avg_normals)
 
     # Find ground plane - largest cluster with largest normal component in z
     # (assumes pitch/roll is < 45 degrees)
     normals_arr = np.asarray(avg_normals)
     normal_dirs = np.argmax(np.abs(normals_arr), axis=1)  # normal directions (x,y,z)
     ground_normal = normals_arr[normal_dirs==2][0]
+    #ground_normal = avg_normals[0]
 
     # Find extraction basis based on normals
     basis = np.zeros((3,3))
@@ -416,11 +418,50 @@ def planes_from_clusters(mesh, clusters, avg_normals):
         cluster_pts = mesh_cluster_pts(mesh, c)  # Extract points from cluster
 
         # Extract bounding plane
-        plane_pts = bd_plane_from_pts_basis(cluster_pts, n, basis)
+        plane_pts = bd_plane_from_pts_basis(cluster_pts, n, basis, z_outlier_thresh)
         if plane_pts is not None:
             planes.append(BoundedPlane(plane_pts))
     
     return planes, basis
+
+
+
+def combine_ground_cluster(clusters, avg_normals):
+    """Convert clustered points to a set of planes
+
+    Parameters
+    ----------
+    clusters : list of lists
+        Point indices grouped into clusters (based on surface normals and locality)
+    avg_normals : list of np.array (3 x 1)
+        Average normal vector for each cluster of points
+
+    Returns
+    -------
+    
+
+    """ 
+
+    # Sort clusters from largest to smallest
+    clusters, avg_normals = sort_mesh_clusters(clusters, avg_normals)
+
+    # Find all ground planes
+    normals_arr = np.asarray(avg_normals)
+    normal_dirs = np.argmax(np.abs(normals_arr), axis=1)  # normal directions (x,y,z)
+
+    #ground_normal = normals_arr[normal_dirs==2][0]
+    ground_normal = np.array([0,0,1])
+    ground_clusters = [clusters[i] for i in range(len(clusters)) if (normal_dirs==2)[i]]
+    ground_cluster = [i for c in ground_clusters for i in c]
+
+    wall_normals = list(normals_arr[normal_dirs!=2])
+    wall_clusters = [clusters[i] for i in range(len(clusters)) if (normal_dirs!=2)[i]]
+
+    clusters = [ground_cluster] + wall_clusters
+    avg_normals = [ground_normal] + wall_normals
+    
+    return clusters, avg_normals
+
 
 
 def planes_from_pcl_clusters(P, clusters, normals_arr):

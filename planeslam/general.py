@@ -201,7 +201,7 @@ def color_legend(ax, num_colors):
     ax.legend()
 
 
-def pc_plot_trace(P, color=None):
+def pc_plot_trace(P, color=None, size=2):
     """Generate plotly plot trace for point cloud
 
     Parameters
@@ -216,7 +216,7 @@ def pc_plot_trace(P, color=None):
 
     """
     return go.Scatter3d(x=P[:,0], y=P[:,1], z=P[:,2], 
-        mode='markers', marker=dict(size=2, color=color))
+        mode='markers', marker=dict(size=size, color=color))
 
 
 def pose_plot_trace(R, t):
@@ -246,7 +246,7 @@ def pose_plot_trace(R, t):
     return [point, lines]
 
 
-def trajectory_plot_trace(Rs, ts, color="red"):
+def trajectory_plot_trace(Rs, ts, color="red", scale=1.0):
     """Generate plotly plot trace for a 3D trajectory of poses
 
     Parameters
@@ -266,9 +266,9 @@ def trajectory_plot_trace(Rs, ts, color="red"):
     xs = []; ys = []; zs = []
     for i in range(len(ts)):
         for j in range(3):
-            xs += [ts[i,0], ts[i,0] + Rs[0,j,i], None]
-            ys += [ts[i,1], ts[i,1] + Rs[1,j,i], None]
-            zs += [ts[i,2], ts[i,2] + Rs[2,j,i], None]
+            xs += [ts[i,0], ts[i,0] + scale*Rs[0,j,i], None]
+            ys += [ts[i,1], ts[i,1] + scale*Rs[1,j,i], None]
+            zs += [ts[i,2], ts[i,2] + scale*Rs[2,j,i], None]
     lines = go.Scatter3d(x=xs, y=ys, z=zs, mode="lines", line=dict(color=color), showlegend=False)
     return [points, lines]
     

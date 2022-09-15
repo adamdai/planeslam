@@ -62,7 +62,9 @@ def cluster_mesh_graph_search(mesh, normal_match_thresh=0.866, min_cluster_size=
 
     avg_normals = len(clusters) * [None]
     for i, c in enumerate(clusters):
-        avg_normals[i] = normalize(np.mean(normals[c], axis=0))
+        idxs, cts = np.unique(mesh.DT.simplices[c,:], return_counts=True)  # ignore points that only belong to 1 triangle in the cluster
+        cluster_tris = np.arange(len(mesh.DT.simplices))[np.all(np.isin(mesh.DT.simplices, idxs[cts>2]), axis=1)]
+        avg_normals[i] = normalize(np.mean(mesh.normals[cluster_tris], axis=0))
 
     return clusters, avg_normals
 
@@ -169,6 +171,10 @@ def plot_clusters(P, mesh, clusters):
     for i, c in enumerate(clusters):
         idxs = np.unique(mesh.DT.simplices[c,:]) 
         cluster_idxs[idxs] = i
+
+    # Don't plot outliers
+    P = P[cluster_idxs!=-1]
+    cluster_idxs = cluster_idxs[cluster_idxs!=-1]
     
     fig = px.scatter_3d(P, x=0, y=1, z=2, color=cluster_idxs.astype(str), color_discrete_sequence=px.colors.qualitative.Plotly)
     fig.update_layout(width=1500, height=900, scene=dict(aspectmode='data', xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))

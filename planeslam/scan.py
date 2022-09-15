@@ -180,8 +180,8 @@ class Scan:
 
             for j, q in enumerate(Q): 
                 # Check if 2 planes are approximately coplanar
-                #if np.linalg.norm(p.normal - q.normal) < norm_thresh:
-                if np.dot(p.normal, q.normal) > 0.95:  # 18 degrees
+                if np.linalg.norm(p.normal - q.normal) < norm_thresh:
+                #if np.dot(p.normal, q.normal) > 0.95:  # 18 degrees
                     # Check plane to plane distance    
                     if plane_to_plane_dist(p, q) < dist_thresh:
                         # Project q onto p's basis
@@ -376,7 +376,7 @@ def velo_pc_to_scan(P, ds_rate=5, edge_len_lim=0.5):
 
     mesh.smooth_laplacian()
     clusters, avg_normals = cluster_mesh_graph_search(mesh)
-    planes, basis = planes_from_clusters(mesh, clusters, avg_normals)
+    planes, basis = planes_from_clusters(mesh, clusters, avg_normals, z_outlier_thresh=0.01)
     return Scan(planes, basis)
 
 
