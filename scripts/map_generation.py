@@ -10,21 +10,22 @@ from copy import deepcopy
 
 import planeslam.io as io
 from planeslam.scan import pc_to_scan
-from planeslam.general import NED_to_ENU, trajectory_plot_trace
+from planeslam.general import NED_to_ENU
 from planeslam.geometry.util import quat_to_R
 from planeslam.pose_graph import PoseGraph
 from planeslam.registration import robust_GN_register, loop_closure_register
+from planeslam.slam import generate_map
 
 
 if __name__ == "__main__":
 
     # Read in point cloud data
     print("reading data...")
-    binpath = os.path.join(os.getcwd(), '..', 'data', 'airsim', 'blocks_60_samples_loop_closure', 'lidar', 'Drone0')
+    binpath = os.path.join(os.getcwd(), '..', 'data', 'airsim', 'blocks_loop_225_samples_3hz_spd_4_noyaw', 'lidar', 'Drone0')
     PCs = io.read_lidar_bin(binpath)
 
     # Read in ground-truth poses (in drone local frame)
-    posepath = os.path.join(os.getcwd(), '..', 'data', 'airsim', 'blocks_60_samples_loop_closure', 'poses', 'Drone0')
+    posepath = os.path.join(os.getcwd(), '..', 'data', 'airsim', 'blocks_loop_225_samples_3hz_spd_4_noyaw', 'poses', 'Drone0')
     drone_positions, drone_orientations = io.read_poses(posepath)
 
     # Convert to ENU
@@ -60,8 +61,8 @@ if __name__ == "__main__":
 
     # Scans
     scans = [pc_to_scan(PCs[0])]
-    scans_transformed = [deepcopy(scans[0])]
-    scans_transformed[0].transform(R_abs, t_abs)
+    # scans_transformed = [deepcopy(scans[0])]
+    # scans_transformed[0].transform(R_abs, t_abs)
 
     # Initalize pose graph
     g = PoseGraph()
@@ -75,6 +76,12 @@ if __name__ == "__main__":
     registration_times = []
     loop_closure_times = []
     merging_times = []
+
+    camera = dict(
+        up=dict(x=0, y=0, z=1),
+        center=dict(x=0, y=0, z=0),
+        eye=dict(x=0, y=-2.0, z=1.0)
+    )
 
     for i in range(1, N):
         print("i = ", i)
@@ -94,8 +101,8 @@ if __name__ == "__main__":
         R_abs = R_hat @ R_abs
 
         # Transform scan
-        scans_transformed.append(deepcopy(scans[i]))
-        scans_transformed[i].transform(R_abs, t_abs)
+        scan_transformed = deepcopy(scans[i])
+        scan_transformed.transform(R_abs, t_abs)
 
         # Save data
         R_hats.append(R_hat)
@@ -108,7 +115,7 @@ if __name__ == "__main__":
         g.add_edge([i-1, i], (R_hat, t_hat))
 
         # Loop closure detection
-        start_time = time.time()
+        LC = False
         if i > LOOP_CLOSURE_PREV_THRESH:
             LC_dists = np.linalg.norm(t_abs - positions[:i-LOOP_CLOSURE_PREV_THRESH], axis=1)
             LCs = np.argwhere(LC_dists < LOOP_CLOSURE_SEARCH_RADIUS)
@@ -122,21 +129,26 @@ if __name__ == "__main__":
                 # Optimize graph
                 g.optimize()    
                 # TODO: Re-create map
+                map = generate_map(g.get_poses(), scans)
+                LC = True
         loop_closure_times.append(time.time() - start_time)
 
         # Map update (merging)
         start_time = time.time()
-        map = map.merge(scans_transformed[i], dist_thresh=7.5)
-        map.reduce_inside(p2p_dist_thresh=5)
-        map.fuse_edges(vertex_merge_thresh=2.0)
+        if not LC:
+            map = map.merge(scan_transformed, dist_thresh=7.5)
+            map.reduce_inside(p2p_dist_thresh=5)
+            map.fuse_edges(vertex_merge_thresh=2.0)
         merging_times.append(time.time() - start_time)
 
-        # Save map
-        fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False))
-        fig.update_layout(width=1500, height=900, 
-            scene=dict(aspectmode='data', xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)),
-            )
-        fig.write_image('../images/map/map'+str(i)+'.png', width=600, height=480)
+        # Visualization
+        positions = g.get_positions()
+        traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
+            marker=dict(size=1, color='orange'), showlegend=False)
+        fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
+        fig.update_layout(scene=dict(aspectmode='data', 
+            xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
+        fig.write_image("../images/map/map"+str(i)+".png", width=1600, height=900)
 
         #avg_runtime += time.time() - start_time
 

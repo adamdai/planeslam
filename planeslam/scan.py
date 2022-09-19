@@ -180,13 +180,8 @@ class Scan:
 
             for j, q in enumerate(Q): 
                 # Check if 2 planes are approximately coplanar
-<<<<<<< HEAD
                 if np.linalg.norm(p.normal - q.normal) < norm_thresh:
                 #if np.dot(p.normal, q.normal) > 0.95:  # 18 degrees
-=======
-                #if np.linalg.norm(p.normal - q.normal) < norm_thresh:
-                if p.normal.T @ q.normal > 0.95:  # 18 degrees
->>>>>>> c976211743f175d72fc5d57abdb57071145a51d4
                     # Check plane to plane distance    
                     if plane_to_plane_dist(p, q) < dist_thresh:
                         # Project q onto p's basis
@@ -326,6 +321,23 @@ class Scan:
         # Update planes
         for i, idx in enumerate(update_idxs):
             self.planes[idx] = update_planes[i]
+
+
+    def compute_bounds(self):
+        """Compute the min/max xyz bounds of the scan
+        
+        Returns
+        -------
+        np.array (3 x 2)
+            xyz bounds
+        
+        """
+        scan_verts = np.empty((0,3))
+
+        for p in self.planes:
+            scan_verts = np.vstack((scan_verts, p.vertices))
+        
+        return np.vstack((np.min(scan_verts, axis=0), np.max(scan_verts, axis=0))).T
 
 
 
