@@ -388,15 +388,15 @@ def planes_from_clusters(mesh, clusters, avg_normals, z_outlier_thresh=0.1):
     planes = []
 
     # Sort clusters from largest to smallest
-    clusters, avg_normals = sort_mesh_clusters(clusters, avg_normals)
-    #clusters, avg_normals = combine_ground_cluster(clusters, avg_normals)
+    #clusters, avg_normals = sort_mesh_clusters(clusters, avg_normals)
+    clusters, avg_normals = combine_ground_cluster(clusters, avg_normals)
 
     # Find ground plane - largest cluster with largest normal component in z
     # (assumes pitch/roll is < 45 degrees)
     normals_arr = np.asarray(avg_normals)
-    normal_dirs = np.argmax(np.abs(normals_arr), axis=1)  # normal directions (x,y,z)
-    ground_normal = normals_arr[normal_dirs==2][0]
-    #ground_normal = avg_normals[0]
+    # normal_dirs = np.argmax(np.abs(normals_arr), axis=1)  # normal directions (x,y,z)
+    # ground_normal = normals_arr[normal_dirs==2][0]
+    ground_normal = avg_normals[0]
 
     # Find extraction basis based on normals
     basis = np.zeros((3,3))
