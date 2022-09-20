@@ -14,7 +14,7 @@ from planeslam.geometry.util import quat_to_R
 from planeslam.registration import robust_GN_register
 
 
-def generate_map(traj, scans):
+def generate_map(traj, scans, dist_thresh=7.5, p2p_thresh=5.0, area_thresh=5.0, fuse_thresh=2.0):
     """Generate map from trajectory and scans by transforming scans and merging them together
 
     Parameters
@@ -37,10 +37,10 @@ def generate_map(traj, scans):
     
     map = scans_transformed[0]
     for s in scans_transformed[1:]:
-        map = map.merge(s, dist_thresh=7.5)
-        map.reduce_inside(p2p_dist_thresh=5)
-        map.remove_small_planes(area_thresh=5.0)
-        map.fuse_edges(vertex_merge_thresh=2.0)
+        map = map.merge(s, dist_thresh=dist_thresh)
+        map.reduce_inside(p2p_dist_thresh=p2p_thresh)
+        map.remove_small_planes(area_thresh=area_thresh)
+        map.fuse_edges(vertex_merge_thresh=fuse_thresh)
     
     return map
 

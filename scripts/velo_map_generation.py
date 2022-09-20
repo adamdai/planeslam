@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     # Read in point cloud data
     print("reading data...")
-    pcpath = os.path.join(os.getcwd(), '..', 'data', 'velodyne', '8_20_2022', 'flightroom', 'run_7', 'pcs')
+    pcpath = os.path.join(os.getcwd(), '..', 'data', 'velodyne', '9_19_2022', 'flightroom', 'run_3', 'pcs')
     PCs = []
     select_idxs = np.arange(0, len(os.listdir(pcpath)), 5)
     for i in select_idxs:  
@@ -31,7 +31,7 @@ if __name__ == "__main__":
         PCs.append(PC)
 
     # Read in ground-truth poses (in drone local frame)
-    posepath = os.path.join(os.getcwd(), '..', 'data', 'velodyne', '8_20_2022', 'flightroom', 'run_7', 'poses')
+    posepath = os.path.join(os.getcwd(), '..', 'data', 'velodyne', '9_19_2022', 'flightroom', 'run_3', 'poses')
     poses = []
     for i in select_idxs:  
         filename = os.path.join(posepath, 'pose_'+str(i)+'.npy')
@@ -55,12 +55,15 @@ if __name__ == "__main__":
 
     # Run SLAM
     print("running SLAM...")
-    LOOP_CLOSURE_SEARCH_RADIUS = 0.5  # [m]
-    LOOP_CLOSURE_PREV_THRESH = 10  # don't search for loop closures over this number of the previous scans
-    init_pose = (rover_rotations[:,:,0], rover_positions_shifted[0,:].copy())
+    LOOP_CLOSURE_SEARCH_RADIUS = 0.2  # [m]
+    LOOP_CLOSURE_PREV_THRESH = 50  # don't search for loop closures over this number of the previous scans
+
+    start = 0
+    init_pose = (rover_rotations[:,:,start], rover_positions_shifted[start,:].copy())
 
     #--------------------------------------------------------------#
     N = len(PCs)
+    #N = 5
 
     # Relative transformations
     R_hats = []
@@ -72,14 +75,16 @@ if __name__ == "__main__":
     positions = t_abs
 
     # Scans
-    scans = [velo_pc_to_scan(velo_preprocess(PCs[0], shifted_poses[0]))]
+    scans = [velo_pc_to_scan(velo_preprocess(PCs[start], shifted_poses[start]))]
+    scan_transformed = deepcopy(scans[0])
+    scan_transformed.transform(R_abs, t_abs)
 
     # Initalize pose graph
     g = PoseGraph()
     g.add_vertex(0, poses[0])
 
     # Initialize map
-    map = scans[0]
+    map = scan_transformed
 
     #avg_runtime = 0
     extraction_times = []
@@ -93,9 +98,18 @@ if __name__ == "__main__":
         eye=dict(x=0, y=-2.0, z=1.0)
     )
 
-    for i in range(1, N):
+    positions = g.get_positions()
+    traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
+        marker=dict(size=5, color='orange'), line=dict(width=2), showlegend=False)
+    fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
+    fig.update_layout(scene=dict(aspectmode='data', 
+        xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
+    imgpath = os.path.join(os.getcwd(), '..', 'images', 'map', 'rover', 'run_3', 'map_0.png')
+    fig.write_image(imgpath, width=2500, height=1600)
+
+    for i in range(1, N-start):
         print("i = ", i)
-        P = velo_preprocess(PCs[i], shifted_poses[i])
+        P = velo_preprocess(PCs[i+start], shifted_poses[i+start])
         
         # Extract scan
         start_time = time.time()
@@ -106,7 +120,7 @@ if __name__ == "__main__":
         
         # Registration
         start_time = time.time()
-        R_hat, t_hat = robust_GN_register(scans[i], scans[i-1])
+        R_hat, t_hat = robust_GN_register(scans[i], scans[i-1], c2c_thresh=1.0)
         registration_times.append(time.time() - start_time)
         t_abs += (R_abs @ t_hat).flatten()
         R_abs = R_hat @ R_abs
@@ -140,26 +154,27 @@ if __name__ == "__main__":
                 # Optimize graph
                 g.optimize()    
                 # Re-create map
-                map = generate_map(g.get_poses(), scans)
+                map = generate_map(g.get_poses(), scans, dist_thresh=0.1, p2p_thresh=0.1, area_thresh=0.1, fuse_thresh=0.1)
                 LC = True
         loop_closure_times.append(time.time() - start_time)
 
         # Map update (merging)
         start_time = time.time()
         if not LC:
-            map = map.merge(scan_transformed, dist_thresh=7.5)
-            map.reduce_inside(p2p_dist_thresh=5)
-            map.fuse_edges(vertex_merge_thresh=2.0)
+            map = map.merge(scan_transformed, dist_thresh=0.1)
+            map.reduce_inside(p2p_dist_thresh=0.1)
+            map.fuse_edges(vertex_merge_thresh=0.1)
         merging_times.append(time.time() - start_time)
 
         # Visualization
         positions = g.get_positions()
         traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
-            marker=dict(size=1, color='orange'), showlegend=False)
+            marker=dict(size=5, color='orange'), showlegend=False)
         fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
         fig.update_layout(scene=dict(aspectmode='data', 
             xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
-        fig.write_image("../images/map/rover/map"+str(i)+".png", width=1600, height=900)
+        imgpath = os.path.join(os.getcwd(), '..', 'images', 'map', 'rover', 'run_3', 'map_'+str(i)+'.png')
+        fig.write_image(imgpath, width=2500, height=1600)
 
         #avg_runtime += time.time() - start_time
 

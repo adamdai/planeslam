@@ -13,7 +13,7 @@ from planeslam.geometry.util import skew
 from planeslam.geometry.rectangle import Rectangle
 
 
-def get_correspondences(source, target):
+def get_correspondences(source, target, c2c_thresh=20.0):
     """Get correspondences between two scans
 
     """
@@ -33,13 +33,14 @@ def get_correspondences(source, target):
             score_mat[i,j] = 20 * np.linalg.norm(n1 - n2) + np.linalg.norm(c1 - c2)
 
     #matches = linear_sum_assignment(score_mat)
+    #print(score_mat)
     
     # Prune the matches based on threshold requirements
-    matches = np.argmin(score_mat, axis=1)
+    matches = np.argmin(score_mat, axis=0)
     corrs = []
-    target_corresponded = []  # only allow each target plane to be corresponded once
+    source_corresponded = []  # only allow each target plane to be corresponded once
     #for i in range(len(matches[0])):
-    for i, j in enumerate(matches):
+    for j, i in enumerate(matches):
         # n1 = source.planes[matches[0][i]].normal.flatten()
         # n2 = target.planes[matches[1][i]].normal.flatten()
         # c1 = source.planes[matches[0][i]].center
@@ -49,10 +50,10 @@ def get_correspondences(source, target):
         c1 = source.planes[i].center
         c2 = target.planes[j].center
         #if np.dot(n1, n2) > 0.707 and plane_to_plane_dist(source.planes[i], target.planes[j]) < 5.0:  # 45 degrees
-        if np.dot(n1, n2) > 0.707 and np.linalg.norm(c1 - c2) < 20.0:
-            if j not in target_corresponded:
+        if np.dot(n1, n2) > 0.707 and np.linalg.norm(c1 - c2) < c2c_thresh:
+            if i not in source_corresponded:
                 corrs.append((i,j))
-                target_corresponded.append(j)
+                source_corresponded.append(i)
     
     return corrs
 
@@ -547,12 +548,12 @@ def decoupled_GN_opt(source, target, correspondences):
     return R_hat, t_hat, t_loss, t_res
 
 
-def robust_GN_register(source, target, t_loss_thresh=1.0, max_faults=3):
+def robust_GN_register(source, target, t_loss_thresh=1.0, max_faults=3, c2c_thresh=20.0):
     """Robust (decoupled) Gauss-newton
     
     """
     # Find correspondences and extract features
-    correspondences = get_correspondences(source, target)
+    correspondences = get_correspondences(source, target, c2c_thresh=c2c_thresh)
     
     # Do registration
     R_hat, t_hat, t_loss, t_res = decoupled_GN_opt(source, target, correspondences)
