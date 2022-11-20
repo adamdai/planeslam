@@ -61,6 +61,9 @@ if __name__ == "__main__":
     start = 0
     init_pose = (rover_rotations[:,:,start], rover_positions_shifted[start,:].copy())
 
+    LC_TIMEOUT = 10
+    LC_timer = -1
+
     #--------------------------------------------------------------#
     N = len(PCs)
     #N = 5
@@ -100,11 +103,11 @@ if __name__ == "__main__":
 
     positions = g.get_positions()
     traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
-        marker=dict(size=5, color='orange'), line=dict(width=2), showlegend=False)
+        marker=dict(size=3, color='orange'), line=dict(width=4), showlegend=False)
     fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
     fig.update_layout(scene=dict(aspectmode='data', 
         xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
-    imgpath = os.path.join(os.getcwd(), '..', 'images', 'map', 'rover', 'run_3', 'map_0.png')
+    imgpath = os.path.join(os.getcwd(), '..', 'images', 'rover', 'run_5', 'map_0.png')
     fig.write_image(imgpath, width=2500, height=1600)
 
     for i in range(1, N-start):
@@ -141,21 +144,27 @@ if __name__ == "__main__":
 
         # Loop closure detection
         LC = False
-        if i > LOOP_CLOSURE_PREV_THRESH:
-            LC_dists = np.linalg.norm(t_abs - positions[:i-LOOP_CLOSURE_PREV_THRESH], axis=1)
-            LCs = np.argwhere(LC_dists < LOOP_CLOSURE_SEARCH_RADIUS)
-            if len(LCs) > 0:
-                # Find the lowest distance loop closure
-                j = LCs[np.argsort(LC_dists[LCs].flatten())[0]][0]
-                #print(f'adding loop closure: ({i}, {j})')
-                R_LC, t_LC = loop_closure_register(scans[i], scans[j], poses[i], poses[j], t_loss_thresh=0.1)
-                # Add LC edge
-                g.add_edge([j, i], (R_LC, t_LC))
-                # Optimize graph
-                g.optimize()    
-                # Re-create map
-                map = generate_map(g.get_poses(), scans, dist_thresh=0.1, p2p_thresh=0.1, area_thresh=0.1, fuse_thresh=0.1)
-                LC = True
+        if LC_timer < 0:
+            if i > LOOP_CLOSURE_PREV_THRESH:
+                LC_dists = np.linalg.norm(t_abs - positions[:i-LOOP_CLOSURE_PREV_THRESH], axis=1)
+                LCs = np.argwhere(LC_dists < LOOP_CLOSURE_SEARCH_RADIUS)
+                if len(LCs) > 0:
+                    # Find the lowest distance loop closure
+                    j = LCs[np.argsort(LC_dists[LCs].flatten())[0]][0]
+                    #print(f'adding loop closure: ({i}, {j})')
+                    R_LC, t_LC = loop_closure_register(scans[i], scans[j], poses[i], poses[j], t_loss_thresh=0.1)
+                    # Add LC edge
+                    g.add_edge([j, i], (R_LC, t_LC))
+                    # Optimize graph
+                    g.optimize()    
+                    # Re-create map
+                    map = generate_map(g.get_poses(), scans, dist_thresh=0.1, p2p_thresh=0.1, area_thresh=0.1, fuse_thresh=0.1)
+                    LC = True
+                    LC_timer = LC_TIMEOUT
+
+                    R_abs, t_abs = g.get_poses()[-1]
+        else:
+            LC_timer -= 1
         loop_closure_times.append(time.time() - start_time)
 
         # Map update (merging)
@@ -169,11 +178,11 @@ if __name__ == "__main__":
         # Visualization
         positions = g.get_positions()
         traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
-            marker=dict(size=5, color='orange'), showlegend=False)
+            marker=dict(size=3, color='orange'), line=dict(width=4), showlegend=False)
         fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
         fig.update_layout(scene=dict(aspectmode='data', 
             xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
-        imgpath = os.path.join(os.getcwd(), '..', 'images', 'map', 'rover', 'run_3', 'map_'+str(i)+'.png')
+        imgpath = os.path.join(os.getcwd(), '..', 'images', 'rover', 'run_5', 'map_'+str(i)+'.png')
         fig.write_image(imgpath, width=2500, height=1600)
 
         #avg_runtime += time.time() - start_time

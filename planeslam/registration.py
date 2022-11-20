@@ -135,13 +135,13 @@ def se3_expmap(v):
     
     Parameters
     ----------
-    v : np.array (3)
-        Parameterized rotation (in so(3))
+    v : np.array (6)
+        Parameterized rotation (in se(3))
 
     Returns
     -------
-    R : np.array (3 x 3)
-        Rotation matrix (in SO(3))
+    R : np.array (4 x 4)
+        Rotation matrix (in SE(3))
     
     """
     t = v[:3]

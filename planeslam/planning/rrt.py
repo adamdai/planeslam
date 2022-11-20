@@ -78,7 +78,8 @@ class RRT:
         line = np.vstack((nearest_pos, new_pos))
         collision = False
         
-        for plane in self.map.planes:
+        # Collision-check
+        for plane in self.get_nearby_planes(nearest_pos):
             if plane.check_line_intersect(line):
                 collision = True
         
@@ -87,6 +88,17 @@ class RRT:
             self.G_pos = np.vstack((self.G_pos, new_pos))
             self.G_edges.append((nearest, self.node_ct))
             self.node_ct += 1
+
+    
+    def get_nearby_planes(self, pos):
+        """Find planes in map which are within radius of position
+        
+        """
+        nearby_planes = []
+        for plane in self.map.planes:
+            if plane.dist_to_point(pos) < self.radius:
+                nearby_planes.append(plane)
+        return nearby_planes
 
 
     def plot_trace(self, line_width=5, marker_size=5):

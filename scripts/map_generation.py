@@ -44,8 +44,11 @@ if __name__ == "__main__":
     # Run SLAM
     print("running SLAM...")
     LOOP_CLOSURE_SEARCH_RADIUS = 10  # [m]
-    LOOP_CLOSURE_PREV_THRESH = 5  # don't search for loop closures over this number of the previous scans
+    LOOP_CLOSURE_PREV_THRESH = 50  # don't search for loop closures over this number of the previous scans
     init_pose = (quat_to_R(drone_orientations[0]), drone_positions[0,:].copy())
+
+    LC_TIMEOUT = 10
+    LC_timer = -1
 
     #--------------------------------------------------------------#
     N = len(PCs)
@@ -61,15 +64,15 @@ if __name__ == "__main__":
 
     # Scans
     scans = [pc_to_scan(PCs[0])]
-    # scans_transformed = [deepcopy(scans[0])]
-    # scans_transformed[0].transform(R_abs, t_abs)
+    scan_transformed = deepcopy(scans[0])
+    scan_transformed.transform(R_abs, t_abs)
 
     # Initalize pose graph
     g = PoseGraph()
     g.add_vertex(0, poses[0])
 
     # Initialize map
-    map = scans[0]
+    map = scan_transformed
 
     #avg_runtime = 0
     extraction_times = []
@@ -82,6 +85,15 @@ if __name__ == "__main__":
         center=dict(x=0, y=0, z=0),
         eye=dict(x=0, y=-2.0, z=1.0)
     )
+
+    positions = g.get_positions()
+    traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
+        marker=dict(size=3, color='orange'), line=dict(width=4), showlegend=False)
+    fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
+    fig.update_layout(scene=dict(aspectmode='data', 
+        xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
+    imgpath = os.path.join(os.getcwd(), '..', 'images', 'airsim', 'run_1', 'map_0.png')
+    fig.write_image(imgpath, width=2500, height=1600)
 
     for i in range(1, N):
         print("i = ", i)
@@ -116,21 +128,27 @@ if __name__ == "__main__":
 
         # Loop closure detection
         LC = False
-        if i > LOOP_CLOSURE_PREV_THRESH:
-            LC_dists = np.linalg.norm(t_abs - positions[:i-LOOP_CLOSURE_PREV_THRESH], axis=1)
-            LCs = np.argwhere(LC_dists < LOOP_CLOSURE_SEARCH_RADIUS)
-            if len(LCs) > 0:
-                # Find the lowest distance loop closure
-                j = LCs[np.argsort(LC_dists[LCs].flatten())[0]][0]
-                #print(f'adding loop closure: ({i}, {j})')
-                R_LC, t_LC = loop_closure_register(scans[i], scans[j], poses[i], poses[j], t_loss_thresh=0.1)
-                # Add LC edge
-                g.add_edge([j, i], (R_LC, t_LC))
-                # Optimize graph
-                g.optimize()    
-                # TODO: Re-create map
-                map = generate_map(g.get_poses(), scans)
-                LC = True
+        if LC_timer < 0:
+            if i > LOOP_CLOSURE_PREV_THRESH:
+                LC_dists = np.linalg.norm(t_abs - positions[:i-LOOP_CLOSURE_PREV_THRESH], axis=1)
+                LCs = np.argwhere(LC_dists < LOOP_CLOSURE_SEARCH_RADIUS)
+                if len(LCs) > 0:
+                    # Find the lowest distance loop closure
+                    j = LCs[np.argsort(LC_dists[LCs].flatten())[0]][0]
+                    print(f'adding loop closure: ({i}, {j})')
+                    R_LC, t_LC = loop_closure_register(scans[i], scans[j], poses[i], poses[j], t_loss_thresh=0.1)
+                    # Add LC edge
+                    g.add_edge([j, i], (R_LC, t_LC))
+                    # Optimize graph
+                    g.optimize()    
+                    # TODO: Re-create map
+                    map = generate_map(g.get_poses(), scans)
+                    LC = True
+                    LC_timer = LC_TIMEOUT
+
+                    R_abs, t_abs = g.get_poses()[-1]
+        else:
+            LC_timer -= 1
         loop_closure_times.append(time.time() - start_time)
 
         # Map update (merging)
@@ -144,11 +162,12 @@ if __name__ == "__main__":
         # Visualization
         positions = g.get_positions()
         traj_trace = go.Scatter3d(x=positions[:,0], y=positions[:,1], z=positions[:,2], 
-            marker=dict(size=1, color='orange'), showlegend=False)
+            marker=dict(size=3, color='orange'), line=dict(width=4), showlegend=False)
         fig = go.Figure(data=map.plot_trace(colors=['blue'], showlegend=False)+[traj_trace])
         fig.update_layout(scene=dict(aspectmode='data', 
             xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False)))
-        fig.write_image("../images/map/map"+str(i)+".png", width=1600, height=900)
+        imgpath = os.path.join(os.getcwd(), '..', 'images', 'airsim', 'run_1', 'map_'+str(i)+'.png')
+        fig.write_image(imgpath, width=2500, height=1600)
 
         #avg_runtime += time.time() - start_time
 
